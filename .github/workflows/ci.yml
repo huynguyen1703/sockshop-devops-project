@@ -1,0 +1,62 @@
+name: DevSecOps CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+    # Chỉ chạy pipeline nếu có sự thay đổi trong thư mục apps
+    paths:
+      - 'apps/**'
+
+env:
+  AWS_REGION: ap-southeast-1
+  # URL ECR mà Thành viên A đã bàn giao
+  ECR_REGISTRY: 714361120707.dkr.ecr.ap-southeast-1.amazonaws.com
+
+jobs:
+  build-scan-push:
+    runs-on: ubuntu-latest
+    # Dùng tính năng matrix để chạy song song 7 microservices cùng lúc
+    strategy:
+      matrix:
+        service: [carts, catalogue, front-end, orders, payment, shipping, user]
+
+    steps:
+      - name: 1. Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: 2. Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 3. Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: 4. Build Docker Image
+        # Tag image bằng mã SHA của lần commit để quản lý phiên bản dễ dàng
+        run: |
+          docker build -t ${{ env.ECR_REGISTRY }}/sockshop/${{ matrix.service }}:${{ github.sha }} ./apps/${{ matrix.service }}
+
+      - name: 5. Run Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.ECR_REGISTRY }}/sockshop/${{ matrix.service }}:${{ github.sha }}'
+          format: 'table'
+          # FAIL FAST: Nếu phát hiện lỗi CRITICAL hoặc HIGH, lập tức dừng pipeline (báo đỏ)
+          exit-code: '1' 
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      - name: 6. Push Image to AWS ECR
+        # Chỉ thực hiện push nếu bước số 5 (Trivy Scan) vượt qua thành công
+        if: success()
+        run: |
+          docker push ${{ env.ECR_REGISTRY }}/sockshop/${{ matrix.service }}:${{ github.sha }}
+          # Gắn thêm tag latest cho image vừa push
+          docker tag ${{ env.ECR_REGISTRY }}/sockshop/${{ matrix.service }}:${{ github.sha }} ${{ env.ECR_REGISTRY }}/sockshop/${{ matrix.service }}:latest
+          docker push ${{ env.ECR_REGISTRY }}/sockshop/${{ matrix.service }}:latest
