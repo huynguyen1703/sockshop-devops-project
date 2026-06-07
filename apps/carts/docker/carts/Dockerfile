@@ -36,3 +36,5 @@ ENV JAVA_OPTS="-Xms64m -Xmx128m -XX:+UseG1GC"
 EXPOSE 80
 
 CMD ["sh", "-c", "java $JAVA_OPTS -jar /app/carts.jar --port=80"]
+
+#Test Kich ban CI
