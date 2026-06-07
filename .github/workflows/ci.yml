@@ -29,7 +29,7 @@ jobs:
             dockerfile: ./apps/payment/test/Dockerfile
           - service: catalogue
             context: ./apps/catalogue
-            dockerfile: ./apps/catalogue/docker/catalogue/Dockerfile 
+            dockerfile: ./apps/catalogue/docker/catalogue/Dockerfile
           - service: orders
             context: ./apps/orders
             dockerfile: ./apps/orders/docker/orders/Dockerfile

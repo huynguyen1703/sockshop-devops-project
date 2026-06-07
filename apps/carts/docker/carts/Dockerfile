@@ -1,41 +1,37 @@
 # ==========================================
-# STAGE 1: Xây dựng (Builder)
+# STAGE 1: Build file .JAR từ mã nguồn Java
 # ==========================================
-FROM golang:1.21-alpine AS builder
+FROM maven:3.9.6-eclipse-temurin-21-alpine AS builder
 
-WORKDIR /go/src/github.com/microservices-demo/catalogue
+WORKDIR /usr/src/app
+
+# Copy toàn bộ mã nguồn của carts vào container
 COPY . .
 
-# 1. BẢN VÁ: Xóa bỏ tận gốc thư mục vendor cũ để tránh lỗi inconsistent vendoring
-RUN rm -rf vendor
-
-# Khởi tạo go module mới
-RUN go mod init github.com/microservices-demo/catalogue || true
-RUN go mod tidy || trueclear
-
-# 2. BẢN VÁ: Thêm cờ -mod=mod để ép Go compiler dùng Go Modules thay vì vendor cũ
-RUN CGO_ENABLED=0 GOOS=linux go build -mod=mod -a -installsuffix cgo -o /app ./cmd/cataloguesvc
+# Tiến hành đóng gói ứng dụng, bỏ qua chạy thử nghiệm (test) để tiết kiệm thời gian CI
+RUN mvn clean package -DskipTests
 
 # ==========================================
-# STAGE 2: Chạy thực tế (Production)
+# STAGE 2: Chạy ứng dụng thực tế gọn nhẹ
 # ==========================================
-FROM alpine:3.19
-
-# Cài đặt chứng chỉ mạng và múi giờ cơ bản
-RUN apk --no-cache add ca-certificates ARR=true && img_version=v1
+FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
-COPY --from=builder /app /app
-COPY images/ /images/
 
-# Tạo user không có quyền root (Non-root user) để bảo mật
+# Tạo user không có quyền root (Non-root) để đảm bảo bảo mật cho hệ thống
 RUN addgroup -g 10001 mygroup && \
-    adduser -g "Catalogue user" -D -H -G mygroup -s /sbin/nologin -u 10001 myuser
+    adduser -g "Carts user" -D -H -G mygroup -s /sbin/nologin -u 10001 myuser
 
-RUN chown -R myuser:mygroup /app /images
+# Bốc file .jar vừa được build thành công từ STAGE 1 sang STAGE 2
+COPY --from=builder /usr/src/app/target/*.jar /app/carts.jar
+
+# Phân quyền sở hữu file jar cho non-root user
+RUN chown -R myuser:mygroup /app
 USER myuser
 
-ENV PORT 80
+# Cấu hình môi trường chạy Java tối ưu cho container
+ENV JAVA_OPTS="-Xms64m -Xmx128m -XX:+UseG1GC"
+
 EXPOSE 80
 
-CMD ["/app", "-port=80"]
+CMD ["sh", "-c", "java $JAVA_OPTS -jar /app/carts.jar --port=80"]
