@@ -1,31 +1,19 @@
 # ==========================================
-# STAGE 1: Xây dựng (Builder) - Chuẩn hóa Modules ổn định
+# STAGE 1: Xây dựng (Quay về kỷ nguyên GOPATH 2017)
 # ==========================================
 FROM golang:1.17-alpine AS builder
 
-# 🎯 Cài thêm git vì một số thư viện cũ bắt buộc phải có git mới tải được
-RUN apk add --no-cache git
-
+# Thiết lập GOPATH chuẩn mực của dự án cũ
+ENV GOPATH=/go
 WORKDIR /go/src/github.com/microservices-demo/catalogue
+
+# Copy toàn bộ mã nguồn (BAO GỒM CẢ THƯ MỤC VENDOR NGUYÊN BẢN)
 COPY . .
 
-# Xóa thư mục vendor cũ (nếu có)
-RUN rm -rf vendor
+# 🎯 ĐIỂM CHỐT HẠ: Tắt hoàn toàn Go Modules
+# Lệnh này ép Go phải sử dụng các thư viện chuẩn đã được chốt cứng 
+# bên trong thư mục /vendor của dự án, bỏ qua mọi rà soát trên mạng.
+ENV GO111MODULE=off
 
-# Khởi tạo gói quản lý module
-RUN go mod init github.com/microservices-demo/catalogue || true
-
-# 🎯 BẢN VÁ 1: Đổi tên Zipkin sang đúng repository đang duy trì mã nguồn cũ
-RUN go mod edit -replace github.com/openzipkin/zipkin-go-opentracing=github.com/openzipkin-contrib/zipkin-go-opentracing@v0.4.5
-
-# 🎯 BẢN VÁ 2: Hạ go-kit xuống tận v0.3.0 (Đây là phiên bản cũ còn giữ tham số context.Context)
-RUN go mod edit -replace github.com/go-kit/kit=github.com/go-kit/kit@v0.3.0
-
-# 🎯 BẢN VÁ 3: Sửa lỗi phân biệt chữ hoa/thường kinh điển của thư viện logrus
-RUN go mod edit -replace github.com/Sirupsen/logrus=github.com/sirupsen/logrus@v1.8.1
-
-# Tải trước các module cần thiết (cho phép bỏ qua lỗi vụn vặt của các module không xài tới)
-RUN go mod download || true
-
-# Biên dịch trực tiếp, Go sẽ dùng GOPROXY để tự vá và chỉ tải đúng những gì mã nguồn cần
+# Biên dịch ứng dụng tĩnh
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app ./cmd/cataloguesvc
