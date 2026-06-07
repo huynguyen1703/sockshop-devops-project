@@ -1,0 +1,77 @@
+name: DevSecOps CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/**'
+
+env:
+  AWS_REGION: ap-southeast-1
+  ECR_REGISTRY: 714361120707.dkr.ecr.ap-southeast-1.amazonaws.com
+
+jobs:
+  build-scan-push:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: carts
+            context: ./apps/carts
+            dockerfile: ./apps/carts/docker/carts/Dockerfile
+          - service: front-end
+            context: ./apps/front-end
+            dockerfile: ./apps/front-end/Dockerfile
+          - service: payment
+            context: ./apps/payment
+            dockerfile: ./apps/payment/test/Dockerfile
+          - service: catalogue
+            context: ./apps/catalogue
+            dockerfile: ./apps/catalogue/docker/catalogue/Dockerfile 
+          - service: orders
+            context: ./apps/orders
+            dockerfile: ./apps/orders/docker/orders/Dockerfile
+          - service: shipping
+            context: ./apps/shipping
+            dockerfile: ./apps/shipping/docker/shipping/Dockerfile
+          - service: user
+            context: ./apps/user
+            dockerfile: ./apps/user/docker/user/Dockerfile
+    steps:
+      - name: 1. Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: 2. Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 3. Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: 4. Build Docker Image
+        run: |
+          docker build -t ${{ env.ECR_REGISTRY }}/sockshop/${{ matrix.service }}:${{ github.sha }} -f ${{ matrix.dockerfile }} ${{ matrix.context }}
+      
+      - name: 5. Run Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.ECR_REGISTRY }}/sockshop/${{ matrix.service }}:${{ github.sha }}'
+          format: 'table'
+          exit-code: '1' 
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      - name: 6. Push Image to AWS ECR
+        if: success()
+        run: |
+          docker push ${{ env.ECR_REGISTRY }}/sockshop/${{ matrix.service }}:${{ github.sha }}
+          # Gắn thêm tag latest cho image vừa push
+          docker tag ${{ env.ECR_REGISTRY }}/sockshop/${{ matrix.service }}:${{ github.sha }} ${{ env.ECR_REGISTRY }}/sockshop/${{ matrix.service }}:latest
+          docker push ${{ env.ECR_REGISTRY }}/sockshop/${{ matrix.service }}:latest
