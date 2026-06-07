@@ -11,7 +11,7 @@ RUN rm -rf vendor
 
 # Khởi tạo go module mới
 RUN go mod init github.com/microservices-demo/catalogue || true
-RUN go mod tidy || true
+RUN go mod tidy || trueclear
 
 # 2. BẢN VÁ: Thêm cờ -mod=mod để ép Go compiler dùng Go Modules thay vì vendor cũ
 RUN CGO_ENABLED=0 GOOS=linux go build -mod=mod -a -installsuffix cgo -o /app ./cmd/cataloguesvc
