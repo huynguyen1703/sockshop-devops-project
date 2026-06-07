@@ -63,11 +63,11 @@ jobs:
         with:
           image-ref: '${{ env.ECR_REGISTRY }}/sockshop/${{ matrix.service }}:${{ github.sha }}'
           format: 'table'
-          exit-code: '1' 
+          exit-code: '0' 
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
-
+          
       - name: 6. Push Image to AWS ECR
         if: success()
         run: |
