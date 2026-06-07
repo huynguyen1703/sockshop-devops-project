@@ -1,34 +1,41 @@
 # ==========================================
 # STAGE 1: Xây dựng (Builder)
 # ==========================================
-FROM maven:3.9.6-eclipse-temurin-8 AS builder
+FROM golang:1.21-alpine AS builder
 
-WORKDIR /usr/src/app
+WORKDIR /go/src/github.com/microservices-demo/catalogue
+COPY . .
 
-# Copy file cấu hình và toàn bộ mã nguồn vào
-COPY pom.xml ./
-COPY src ./src
+# 1. BẢN VÁ: Xóa bỏ tận gốc thư mục vendor cũ để tránh lỗi inconsistent vendoring
+RUN rm -rf vendor
 
-# Đóng gói ra file .jar (Bỏ qua chạy test để chạy cho nhanh)
-RUN mvn clean package -DskipTests
+# Khởi tạo go module mới
+RUN go mod init github.com/microservices-demo/catalogue || true
+RUN go mod tidy || true
+
+# 2. BẢN VÁ: Thêm cờ -mod=mod để ép Go compiler dùng Go Modules thay vì vendor cũ
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=mod -a -installsuffix cgo -o /app ./cmd/cataloguesvc
 
 # ==========================================
 # STAGE 2: Chạy thực tế (Production)
 # ==========================================
-FROM eclipse-temurin:8-jre-alpine
+FROM alpine:3.19
 
-RUN apk add --no-cache curl
+# Cài đặt chứng chỉ mạng và múi giờ cơ bản
+RUN apk --no-cache add ca-certificates ARR=true && img_version=v1
 
 WORKDIR /app
+COPY --from=builder /app /app
+COPY images/ /images/
 
-# Tạo user thường để bảo mật
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# Tạo user không có quyền root (Non-root user) để bảo mật
+RUN addgroup -g 10001 mygroup && \
+    adduser -g "Catalogue user" -D -H -G mygroup -s /sbin/nologin -u 10001 myuser
 
-# ÉP BUỘC lấy file .jar vừa được build thành công từ STAGE 1 sang
-COPY --from=builder --chown=appuser:appgroup /usr/src/app/target/*.jar ./app.jar
+RUN chown -R myuser:mygroup /app /images
+USER myuser
 
-USER appuser
-
+ENV PORT 80
 EXPOSE 80
 
-CMD ["java", "-Djava.security.egd=file:/dev/./urandom", "-jar", "app.jar", "--port=80"]
+CMD ["/app", "-port=80"]
