@@ -1,20 +1,20 @@
 # ==========================================
-# STAGE 1: Build file .JAR từ mã nguồn Java
+# STAGE 1: Build file .JAR với Java 8 chuẩn gốc của dự án
 # ==========================================
-FROM maven:3.9.6-eclipse-temurin-21-alpine AS builder
+FROM maven:3.6.3-jdk-8-slim AS builder
 
 WORKDIR /usr/src/app
 
 # Copy toàn bộ mã nguồn của carts vào container
 COPY . .
 
-# Tiến hành đóng gói ứng dụng, bỏ qua chạy thử nghiệm (test) để tiết kiệm thời gian CI
-RUN mvn clean package -DskipTests
+# Tiến hành đóng gói ứng dụng, bỏ qua test và tắt tính năng tìm kiếm snapshot bị lỗi
+RUN mvn clean package -DskipTests -DallowParameterNames=true
 
 # ==========================================
-# STAGE 2: Chạy ứng dụng thực tế gọn nhẹ
+# STAGE 2: Chạy ứng dụng thực tế gọn nhẹ với JRE 8
 # ==========================================
-FROM eclipse-temurin:21-jre-alpine
+FROM openjdk:8-jre-alpine
 
 WORKDIR /app
 
