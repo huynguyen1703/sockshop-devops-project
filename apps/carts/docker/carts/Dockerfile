@@ -8,13 +8,14 @@ WORKDIR /usr/src/app
 # Copy toàn bộ mã nguồn của carts vào container
 COPY . .
 
-# Tiến hành đóng gói ứng dụng, bỏ qua test và tắt tính năng tìm kiếm snapshot bị lỗi
+# Tiến hành đóng gói ứng dụng, bỏ qua test
 RUN mvn clean package -DskipTests -DallowParameterNames=true
 
 # ==========================================
-# STAGE 2: Chạy ứng dụng thực tế gọn nhẹ với JRE 8
+# STAGE 2: Chạy ứng dụng thực tế gọn nhẹ với JRE 8 chuẩn Temurin
 # ==========================================
-FROM openjdk:8-jre-alpine
+# BẢN VÁ: Thay thế openjdk bằng eclipse-temurin vì bản cũ đã bị Docker Hub xóa bỏ
+FROM eclipse-temurin:8-jre-alpine
 
 WORKDIR /app
 
