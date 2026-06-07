@@ -46,7 +46,7 @@ jobs:
           fetch-depth: 0 
 
       - name: 1.5 SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@v5
+        uses: SonarSource/sonarqube-scan-action@v6 
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} 
@@ -55,6 +55,7 @@ jobs:
             -Dsonar.organization=huynguyen1703
             -Dsonar.projectKey=huynguyen1703_sockshop-devops-project
             -Dsonar.sources=${{ matrix.context }}
+            -Dsonar.java.binaries=.
     
       - name: 2. Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
